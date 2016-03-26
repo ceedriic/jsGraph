@@ -676,6 +676,7 @@ define( [ 'jquery', './graph.position', './graph.util', './dependencies/eventEmi
      * @memberof Graph.prototype
      */
     autoscaleAxes: function() {
+
       this._applyToAxes( "setMinMaxToFitSeries", null, true, true );
 
       //this._applyToAxes( "scaleToFitAxis", [ this.getYAxis() ], false, true )
@@ -719,6 +720,7 @@ define( [ 'jquery', './graph.position', './graph.util', './dependencies/eventEmi
      * @returns {Number} The minimimum or maximum of the axis based on its series
      */
     getBoundaryAxisFromSeries: function( axis, minmax ) {
+
       var min = minmax == 'min',
         val,
         func = axis.isX() ? [ 'getMinX', 'getMaxX' ] : [ 'getMinY', 'getMaxY' ],
@@ -1150,64 +1152,64 @@ define( [ 'jquery', './graph.position', './graph.util', './dependencies/eventEmi
         }
       }
 
-      if ( shapeData.properties ) {
+      if ( shapeData.properties !== undefined ) {
         shape.setProperties( shapeData.properties );
       }
 
       /* Setting shape properties */
-      if ( shapeData.fillColor ) {
+      if ( shapeData.fillColor !== undefined ) {
         shape.setFillColor( shapeData.fillColor );
       }
 
-      if ( shapeData.fillOpacity ) {
+      if ( shapeData.fillOpacity !== undefined ) {
         shape.setFillOpacity( shapeData.fillOpacity );
       }
 
-      if ( shapeData.strokeColor ) {
+      if ( shapeData.strokeColor !== undefined ) {
         shape.setStrokeColor( shapeData.strokeColor );
       }
 
-      if ( shapeData.strokeWidth ) {
-        shape.setStrokeWidth( shapeData.strokeWidth || ( shapeData.strokeColor ? 1 : 0 ) );
+      if ( shapeData.strokeWidth !== undefined ) {
+        shape.setStrokeWidth( shapeData.strokeWidth );
       }
 
-      if ( shapeData.layer ) {
+      if ( shapeData.layer !== undefined ) {
         shape.setLayer( shapeData.layer );
       }
 
-      if ( shapeData.locked ) {
+      if ( shapeData.locked !== undefined ) {
         shape.lock();
       }
 
-      if ( shapeData.movable ) {
+      if ( shapeData.movable !== undefined ) {
         shape.movable();
       }
 
-      if ( shapeData.selectable ) {
+      if ( shapeData.selectable !== undefined ) {
         shape.selectable();
       }
 
-      if ( shapeData.resizable ) {
+      if ( shapeData.resizable !== undefined ) {
         shape.resizable();
       }
 
-      if ( shapeData.attributes ) {
+      if ( shapeData.attributes !== undefined ) {
         shape.setProp( "attributes", shapeData.attributes );
       }
 
-      if ( shapeData.handles ) {
+      if ( shapeData.handles !== undefined ) {
         shape.setProp( 'handles', shapeData.handles );
       }
 
-      if ( shapeData.selectOnMouseDown ) {
+      if ( shapeData.selectOnMouseDown !== undefined ) {
         shape.setProp( "selectOnMouseDown", true );
       }
 
-      if ( shapeData.selectOnClick ) {
+      if ( shapeData.selectOnClick !== undefined ) {
         shape.setProp( "selectOnClick", true );
       }
 
-      if ( shapeData.highlightOnMouseOver ) {
+      if ( shapeData.highlightOnMouseOver !== undefined ) {
         shape.setProp( "highlightOnMouseOver", true );
       }
 
@@ -1215,7 +1217,7 @@ define( [ 'jquery', './graph.position', './graph.util', './dependencies/eventEmi
         shapeData.label = shapeData.labels;
       }
 
-      if ( shapeData.label ) {
+      if ( shapeData.label !== undefined ) {
 
         if ( !Array.isArray( shapeData.label ) ) {
           shapeData.label = [  shapeData.label ];
@@ -1761,6 +1763,17 @@ define( [ 'jquery', './graph.position', './graph.util', './dependencies/eventEmi
       this.axisGroup = document.createElementNS( this.ns, 'g' );
       this.graphingZone.appendChild( this.axisGroup );
 
+      this.groupGrids = document.createElementNS( this.ns, 'g' );
+      this.groupGrids.setAttribute( 'clip-path', 'url(#_clipplot' + this._creation + ')' );
+
+      this.groupPrimaryGrids = document.createElementNS( this.ns, 'g' );
+      this.groupSecondaryGrids = document.createElementNS( this.ns, 'g' );
+
+      this.axisGroup.appendChild( this.groupGrids );
+
+      this.groupGrids.appendChild( this.groupSecondaryGrids );
+      this.groupGrids.appendChild( this.groupPrimaryGrids );
+
       this.plotGroup = document.createElementNS( this.ns, 'g' );
       this.graphingZone.appendChild( this.plotGroup );
 
@@ -1918,14 +1931,44 @@ define( [ 'jquery', './graph.position', './graph.util', './dependencies/eventEmi
     return serie;
   };
 
+  function getAxisLevelFromSpan( span, level ) {
+
+    for ( var i = 0, l = level.length; i < l; i++ ) {
+
+      var possible = true;
+      for ( var k = 0, m = level[ i ].length; k < m; k++ ) {
+
+        if ( !( ( span[ 0 ] < level[ i ][ k ][ 0 ] && span[ 1 ] < level[ i ][ k ][ 0 ] ) || ( ( span[ 0 ] > level[ i ][ k ][ 1 ] && span[ 1 ] > level[ i ][ k ][ 1 ] ) ) ) ) {
+          possible = false;
+        }
+      }
+
+      if ( possible ) {
+
+        level[ i ].push( span );
+        return i;
+      }
+    }
+
+    level.push( [ span ] );
+    return ( level.length - 1 );
+  }
+
   function refreshDrawingZone( graph ) {
 
     var i, j, l, xy, min, max, axis;
     var shift = {
-      top: 0,
-      bottom: 0,
-      left: 0,
-      right: 0
+      top: [],
+      bottom: [],
+      left: [],
+      right: []
+    };
+
+    var levels = {
+      top: [],
+      bottom: [],
+      left: [],
+      right: []
     };
 
     graph._painted = true;
@@ -1937,8 +1980,36 @@ define( [ 'jquery', './graph.position', './graph.util', './dependencies/eventEmi
         return;
       }
 
-      axis.setShift( shift[ position ] + axis.getAxisPosition(), axis.getAxisPosition() );
-      shift[ position ] += axis.getAxisPosition(); // Allow for the extra width/height of position shift
+      var level = getAxisLevelFromSpan( axis.getSpan(), levels[ position ] );
+      axis.setLevel( level );
+
+      shift[ position ][ level ] = Math.max( axis.getAxisPosition(), ( shift[ position ][ level ] || 0 ) );
+
+    }, false, true, false );
+
+    var shiftTop = shift.top.reduce( function( prev, curr ) {
+      return prev + curr;
+    }, 0 );
+
+    var shiftBottom = shift.bottom.reduce( function( prev, curr ) {
+      return prev + curr;
+    }, 0 );
+
+    [ shift.top, shift.bottom ].map( function( arr ) {
+      arr.reduce( function( prev, current, index ) {
+        arr[ index ] = prev + current;
+        return prev + current;
+      }, 0 );
+    } );
+
+    // Apply to top and bottom
+    graph._applyToAxes( function( axis, position ) {
+
+      if ( axis.disabled ||  axis.floating ) {
+        return;
+      }
+
+      axis.setShift( shift[ position ][ axis.getLevel() ] );
 
     }, false, true, false );
 
@@ -1949,8 +2020,8 @@ define( [ 'jquery', './graph.position', './graph.util', './dependencies/eventEmi
         return;
       }
 
-      axis.setMinPx( shift.top );
-      axis.setMaxPx( graph.getDrawingHeight( true ) - shift.bottom );
+      axis.setMinPx( shiftTop );
+      axis.setMaxPx( graph.getDrawingHeight( true ) - shiftBottom );
 
       if ( axis.floating ) {
         return;
@@ -1959,13 +2030,38 @@ define( [ 'jquery', './graph.position', './graph.util', './dependencies/eventEmi
       // First we need to draw it in order to determine the width to allocate
       // graph is done to accomodate 0 and 100000 without overlapping any element in the DOM (label, ...)
 
-      var drawn = axis.draw() || 0,
-        axisDim = axis.getAxisPosition();
-
+      var drawn = axis.draw();
       // Get axis position gives the extra shift that is common
 
-      shift[ position ] += drawn + axisDim;
-      axis.setShift( shift[ position ], drawn + axisDim );
+      var level = getAxisLevelFromSpan( axis.getSpan(), levels[ position ] );
+      axis.setLevel( level );
+
+      shift[ position ][ level ] = Math.max( drawn + axis.getAxisPosition(), shift[ position ][ level ] || 0 );
+
+    }, false, false, true );
+
+    var shiftLeft = shift.left.reduce( function( prev, curr ) {
+      return prev + curr;
+    }, 0 );
+
+    var shiftRight = shift.right.reduce( function( prev, curr ) {
+      return prev + curr;
+    }, 0 );
+
+    [ shift.left, shift.right ].map( function( arr ) {
+      arr.reduce( function( prev, current, index ) {
+        arr[ index ] = prev + current;
+        return prev + current;
+      }, 0 );
+    } );
+
+    // Apply to left and right
+    graph._applyToAxes( function( axis, position ) {
+
+      if ( axis.disabled ||  axis.floating ) {
+        return;
+      }
+      axis.setShift( shift[ position ][ axis.getLevel() ] );
 
     }, false, false, true );
 
@@ -1976,8 +2072,8 @@ define( [ 'jquery', './graph.position', './graph.util', './dependencies/eventEmi
         return;
       }
 
-      axis.setMinPx( shift.left );
-      axis.setMaxPx( graph.getDrawingWidth( true ) - shift.right );
+      axis.setMinPx( shiftLeft );
+      axis.setMaxPx( graph.getDrawingWidth( true ) - shiftRight );
 
       if ( axis.floating ) {
         return;
@@ -2002,20 +2098,20 @@ define( [ 'jquery', './graph.position', './graph.util', './dependencies/eventEmi
 
     }, false, true, true );
 
-    _closeLine( graph, 'right', graph.getDrawingWidth( true ), graph.getDrawingWidth( true ), shift.top, graph.getDrawingHeight( true ) - shift.bottom );
-    _closeLine( graph, 'left', 0, 0, shift.top, graph.getDrawingHeight( true ) - shift.bottom );
-    _closeLine( graph, 'top', shift.left, graph.getDrawingWidth( true ) - shift.right, 0, 0 );
-    _closeLine( graph, 'bottom', shift.left, graph.getDrawingWidth( true ) - shift.right, graph.getDrawingHeight( true ) - shift.bottom, graph.getDrawingHeight( true ) - shift.bottom );
+    _closeLine( graph, 'right', graph.getDrawingWidth( true ), graph.getDrawingWidth( true ), shiftTop, graph.getDrawingHeight( true ) - shiftBottom );
+    _closeLine( graph, 'left', 0, 0, shiftTop, graph.getDrawingHeight( true ) - shiftBottom );
+    _closeLine( graph, 'top', shiftLeft, graph.getDrawingWidth( true ) - shiftRight, 0, 0 );
+    _closeLine( graph, 'bottom', shiftLeft, graph.getDrawingWidth( true ) - shiftRight, graph.getDrawingHeight( true ) - shiftBottom, graph.getDrawingHeight( true ) - shiftBottom );
 
-    graph.clipRect.setAttribute( 'y', shift.top );
-    graph.clipRect.setAttribute( 'x', shift.left );
-    graph.clipRect.setAttribute( 'width', graph.getDrawingWidth() - shift.left - shift.right );
-    graph.clipRect.setAttribute( 'height', graph.getDrawingHeight() - shift.top - shift.bottom );
+    graph.clipRect.setAttribute( 'y', shiftTop );
+    graph.clipRect.setAttribute( 'x', shiftLeft );
+    graph.clipRect.setAttribute( 'width', graph.getDrawingWidth() - shiftLeft - shiftRight );
+    graph.clipRect.setAttribute( 'height', graph.getDrawingHeight() - shiftTop - shiftBottom );
 
-    graph.rectEvent.setAttribute( 'y', shift.top + graph.getPaddingTop() );
-    graph.rectEvent.setAttribute( 'x', shift.left + graph.getPaddingLeft() );
-    graph.rectEvent.setAttribute( 'width', graph.getDrawingWidth() - shift.left - shift.right );
-    graph.rectEvent.setAttribute( 'height', graph.getDrawingHeight() - shift.top - shift.bottom );
+    graph.rectEvent.setAttribute( 'y', shiftTop + graph.getPaddingTop() );
+    graph.rectEvent.setAttribute( 'x', shiftLeft + graph.getPaddingLeft() );
+    graph.rectEvent.setAttribute( 'width', graph.getDrawingWidth() - shiftLeft - shiftRight );
+    graph.rectEvent.setAttribute( 'height', graph.getDrawingHeight() - shiftTop - shiftBottom );
 
     /*
 		graph.shapeZoneRect.setAttribute('x', shift[1]);

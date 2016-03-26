@@ -41,7 +41,7 @@ define( [ 'jquery', './graph.axis' ], function( $, GraphAxis ) {
     },
 
     _setShift: function() {
-      if ( !this.getShift() ||  !this.graph.getDrawingHeight() ) {
+      if ( this.getShift() === undefined || !this.graph.getDrawingHeight() ) {
         return;
       }
 
@@ -122,6 +122,7 @@ define( [ 'jquery', './graph.axis' ], function( $, GraphAxis ) {
       this.line.setAttribute( 'stroke', this.getAxisColor() );
 
       if ( !this.top ) {
+
         this.labelTspan.style.dominantBaseline = 'hanging';
         this.expTspan.style.dominantBaseline = 'hanging';
         this.expTspanExp.style.dominantBaseline = 'hanging';
@@ -150,6 +151,16 @@ define( [ 'jquery', './graph.axis' ], function( $, GraphAxis ) {
     handleMouseMoveLocal: function( x, y, e ) {
       x -= this.graph.getPaddingLeft();
       this.mouseVal = this.getVal( x );
+    },
+
+    setMinMaxFlipped: function() {
+
+      var interval = this.maxPx - this.minPx;
+      var maxPx = interval * this.span[ 1 ] + this.minPx;
+      var minPx = interval * this.span[ 0 ] + this.minPx;
+
+      this.minPxFlipped = this.isFlipped() ? maxPx : minPx;
+      this.maxPxFlipped = this.isFlipped() ? minPx : maxPx;
     }
 
   } );
